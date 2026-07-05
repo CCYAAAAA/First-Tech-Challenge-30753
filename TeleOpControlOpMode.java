@@ -1,163 +1,183 @@
+/* Copyright (c) 2017 FIRST. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted (subject to the limitations in the disclaimer below) provided that
+ * the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice, this list
+ * of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright notice, this
+ * list of conditions and the following disclaimer in the documentation and/or
+ * other materials provided with the distribution.
+ *
+ * Neither the name of FIRST nor the names of its contributors may be used to endorse or
+ * promote products derived from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED BY THIS
+ * LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@TeleOp(name="Single Driver (Rotation Fixed)", group="Teleop")
-public class TeleOpControlOpMode extends OpMode {
 
-    private final ElapsedTime macroTimer = new ElapsedTime();
-    private enum MacroState { IDLE, STEP1_REVERSE, STEP2_WAIT, STEP3_FORWARD }
-    private MacroState currentMacroState = MacroState.IDLE;
-    private boolean lastMacroButton = false;
+/*
+ * This file contains an example of an iterative (Non-Linear) "OpMode".
+ * An OpMode is a 'program' that runs in either the autonomous or the teleop period of an FTC match.
+ * The names of OpModes appear on the menu of the FTC Driver Station.
+ * When a selection is made from the menu, the corresponding OpMode
+ * class is instantiated on the Robot Controller and executed.
+ *
+ * This particular OpMode just executes a basic Tank Drive Teleop for a two wheeled robot
+ * It includes all the skeletal structure that all iterative OpModes contain.
+ *
+ * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
+ * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
+ */
 
-    // --- 参数 ---
-    private static final double STRAFE_CORRECTION = 1.1;
-    private static final double TURN_SENSITIVITY = 1.0;
-    private static final double SPEED_MULTIPLIER = 1.0;
-    private static final double SHOOTER_UP_RATIO = 0.65;
+@TeleOp(name="TeleOp Control", group="Teleop")
 
+public class TeleOpControlOpMode extends OpMode
+{
+    // Declare OpMode members.
+    private final ElapsedTime runtime = new ElapsedTime();
+
+    // Declare drive motors
     private DcMotor frontLeftDrive = null;
     private DcMotor rearLeftDrive = null;
     private DcMotor frontRightDrive = null;
     private DcMotor rearRightDrive = null;
-    private DcMotor intakeMotor = null;
-    private DcMotor indexerMotor = null;
-    private DcMotor shooterDownMotor = null;
-    private DcMotor shooterUpMotor = null;
 
+    /*
+     * Code to run ONCE when the driver hits INIT
+     */
     @Override
     public void init() {
-        // 硬件映射
-        frontLeftDrive  = hardwareMap.get(DcMotor.class, "front_left");
-        rearLeftDrive   = hardwareMap.get(DcMotor.class, "rear_left");
+        telemetry.addData("Status", "Initialized");
+
+        // Initialize the hardware variables. Note that the strings used here as parameters
+        // to 'get' must correspond to the names assigned during the robot configuration
+        // step (using the FTC Robot Controller app on the phone).
+        frontLeftDrive = hardwareMap.get(DcMotor.class, "front_left");
+        rearLeftDrive = hardwareMap.get(DcMotor.class, "rear_left");
         frontRightDrive = hardwareMap.get(DcMotor.class, "front_right");
-        rearRightDrive  = hardwareMap.get(DcMotor.class, "rear_right");
+        rearRightDrive = hardwareMap.get(DcMotor.class, "rear_right");
 
-        intakeMotor     = hardwareMap.get(DcMotor.class, "intake");
-        indexerMotor    = hardwareMap.get(DcMotor.class, "indexer");
-        shooterDownMotor = hardwareMap.get(DcMotor.class, "shooter_down");
-        shooterUpMotor   = hardwareMap.get(DcMotor.class, "shooter_up");
-
-        // --- 方向设置 (保持不变) ---
-        frontLeftDrive.setDirection(DcMotor.Direction.REVERSE);
+        // TODO: Make sure all motors are facing the correct direction. Go one at a time.
+        frontLeftDrive.setDirection(CRServo.Direction.REVERSE);
         rearLeftDrive.setDirection(DcMotor.Direction.REVERSE);
-        frontRightDrive.setDirection(DcMotor.Direction.FORWARD);
+        frontRightDrive.setDirection(CRServo.Direction.FORWARD);
         rearRightDrive.setDirection(DcMotor.Direction.FORWARD);
 
-        // 功能电机
-        shooterDownMotor.setDirection(DcMotor.Direction.FORWARD);
-        shooterUpMotor.setDirection(DcMotor.Direction.FORWARD);
-        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
-        indexerMotor.setDirection(DcMotor.Direction.FORWARD);
+        telemetry.addData("Status", "Initialized");
+        telemetry.update();
 
-        // 刹车
-        frontLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rearLeftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frontRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rearRightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        indexerMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        // To drive forward, most robots need the motor on one side to be reversed, because the axles point in opposite directions.
+        // Pushing the left stick forward MUST make robot go forward. So adjust these two lines based on your first test drive.
+        // Note: The settings here assume direct drive on left and right wheels.  Gear Reduction or 90 Deg drives may require direction flips
+
+        // Tell the driver that initialization is complete.
     }
 
+    /*
+     * Code to run REPEATEDLY after the driver hits INIT, but before they hit START
+     */
+    @Override
+    public void init_loop() {
+    }
+
+    /*
+     * Code to run ONCE when the driver hits START
+     */
+    @Override
+    public void start() {
+        runtime.reset();
+    }
+
+    /*
+     * Code to run REPEATEDLY after the driver hits START but before they hit STOP
+     */
     @Override
     public void loop() {
-        // 1. 输入处理 (保持之前修正后的逻辑)
-        // 左摇杆X控制前后 (Axial)
-        double axial   = gamepad1.left_stick_x;
-        // 左摇杆Y控制平移 (Lateral)
-        double lateral = -gamepad1.left_stick_y * STRAFE_CORRECTION;
-        // 右摇杆X控制旋转
-        double rx      = gamepad1.right_stick_x * TURN_SENSITIVITY;
+        double max;
 
-        // =========================================================
-        //            关键修改：旋转逻辑重组 (Fix Rotation)
-        // =========================================================
+        // COLLECT INPUTS
+        // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
+        double axial   = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+        double lateral =  -gamepad1.right_stick_x;
+        double yaw     =  -gamepad1.left_stick_x;
 
-        // 之前的逻辑是 FL+rx, FR-rx (左正右负)
-        // 但因为你的车逻辑转了90度，前半部分(FL+FR)在打架。
+        // DRIVE CODE
+        // Combine the joystick requests for each axis-motion to determine each wheel's power.
+        // Set up a variable for each drive wheel to save the power level for telemetry.
+        double leftFrontPower  = -axial + lateral + yaw;
+        double rightFrontPower = -axial - lateral - yaw;
+        double leftBackPower   = axial - lateral + yaw;
+        double rightBackPower  = axial + lateral - yaw;
 
-        // 新逻辑：前半部分(FL+FR)同向，后半部分(RL+RR)反向
-        // 这样它们就会形成一个巨大的旋转力矩，而不会互相抵消
+        // Normalize the values so no wheel power exceeds 100%
+        // This ensures that the robot maintains the desired motion.
+        max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
+        max = Math.max(max, Math.abs(leftBackPower));
+        max = Math.max(max, Math.abs(rightBackPower));
 
-        double frontLeftPower  = axial + lateral + rx; // FL 加旋转
-        double frontRightPower = axial - lateral + rx; // FR 也要加旋转 (原来是减)
-
-        double rearLeftPower   = axial - lateral - rx; // RL 减旋转 (原来是加)
-        double rearRightPower  = axial + lateral - rx; // RR 减旋转
-
-        // 如果发现旋转方向反了（推左变右转），把上面四个 rx 的正负号全部反过来即可：
-        // FL - rx
-        // FR - rx
-        // RL + rx
-        // RR + rx
-
-        // =========================================================
-
-        // 归一化
-        double maxPower = Math.max(Math.abs(frontLeftPower),
-                Math.max(Math.abs(rearLeftPower),
-                        Math.max(Math.abs(frontRightPower),
-                                Math.abs(rearRightPower))));
-
-        if (maxPower > 1.0) {
-            frontLeftPower /= maxPower;
-            rearLeftPower /= maxPower;
-            frontRightPower /= maxPower;
-            rearRightPower /= maxPower;
+        if (max > 1.0) {
+            leftFrontPower  /= max;
+            rightFrontPower /= max;
+            leftBackPower   /= max;
+            rightBackPower  /= max;
         }
 
-        frontLeftDrive.setPower(frontLeftPower * SPEED_MULTIPLIER);
-        rearLeftDrive.setPower(rearLeftPower * SPEED_MULTIPLIER);
-        frontRightDrive.setPower(frontRightPower * SPEED_MULTIPLIER);
-        rearRightDrive.setPower(rearRightPower * SPEED_MULTIPLIER);
+        // This is test code:
+        //
+        // Uncomment the following code to test your motor directions.
+        // Each button should make the corresponding motor run FORWARD.
+        //   1) First get all the motors to take to correct positions on the robot
+        //      by adjusting your Robot Configuration if necessary.
+        //   2) Then make sure they run in the correct direction by modifying the
+        //      the setDirection() calls above.
+        // Once  motors move in the correct direction re-comment this code.
 
-        // --- Intake & Macro & Shooter (保持不变) ---
-        double intakePower = 0.0;
-        double indexerPower = 0.0;
-        boolean manualIntakeActive = false;
+            /*
+            leftFrontthe correctPower  = gamepad1.x ? 1.0 : 0.0;  // X gamepad
+            leftBackPower   = gamepad1.a ? 1.0 : 0.0;  // A gamepad
+            rightFrontPower = gamepad1.y ? 1.0 : 0.0;  // Y gamepad
+            rightBackPower  = gamepad1.b ? 1.0 : 0.0;  // B gamepad
+            */
 
-        if (gamepad1.a) { intakePower = 1.0; manualIntakeActive = true; }
-        else if (gamepad1.b) { intakePower = -1.0; manualIntakeActive = true; }
-        if (gamepad1.x) { indexerPower = 1.0; }
-        else if (gamepad1.y) { indexerPower = -1.0; }
+        // WRITE EFFECTORS
+        frontLeftDrive.setPower(leftFrontPower);
+        frontRightDrive.setPower(rightFrontPower);
+        rearLeftDrive.setPower(leftBackPower);
+        rearRightDrive.setPower(rightBackPower);
 
-        boolean currentMacroButton = gamepad1.right_bumper;
-        if (manualIntakeActive) {
-            currentMacroState = MacroState.IDLE;
-        } else {
-            if (currentMacroButton && !lastMacroButton && currentMacroState == MacroState.IDLE) {
-                currentMacroState = MacroState.STEP1_REVERSE;
-                macroTimer.reset();
-            }
-            switch (currentMacroState) {
-                case STEP1_REVERSE:
-                    intakePower = -1.0;
-                    if (macroTimer.seconds() > 0.24) currentMacroState = MacroState.STEP2_WAIT;
-                    break;
-                case STEP2_WAIT:
-                    intakePower = 0.0;
-                    if (macroTimer.seconds() > 0.5) currentMacroState = MacroState.STEP3_FORWARD;
-                    break;
-                case STEP3_FORWARD:
-                    intakePower = 1.0; indexerPower = -1.0;
-                    if (macroTimer.seconds() > 1.5) currentMacroState = MacroState.IDLE;
-                    break;
-                case IDLE: break;
-            }
-        }
-        lastMacroButton = currentMacroButton;
-        intakeMotor.setPower(intakePower);
-        indexerMotor.setPower(indexerPower);
-
-        double triggerInput = gamepad1.right_trigger;
-        shooterUpMotor.setPower(triggerInput * SHOOTER_UP_RATIO);
-        shooterDownMotor.setPower(triggerInput);
-
-        telemetry.addData("Mode", "Rotation Fixed (Front/Back Split)");
-        telemetry.addData("Motors", "FL:%.2f FR:%.2f RL:%.2f RR:%.2f",
-                frontLeftPower, frontRightPower, rearLeftPower, rearRightPower);
+        // UPDATE TELEMETRY
+        telemetry.addData("Status", "Run Time: " + runtime.toString());
+        telemetry.addData("Front left/Right", "%4.2f, %4.2f", leftFrontPower, rightFrontPower);
+        telemetry.addData("Back  left/Right", "%4.2f, %4.2f", leftBackPower, rightBackPower);
         telemetry.update();
     }
+
+    /*
+     * Code to run ONCE after the driver hits STOP
+     */
+    @Override
+    public void stop() {
+    }
+
 }
